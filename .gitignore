@@ -32,8 +32,8 @@ override.tf.json
 .terraformrc
 terraform.rc
 
-# # Sensitive variables
+# Sensitive variables
 *credentials*
 
-# # MacOS
+# MacOS
 .DS_Store
