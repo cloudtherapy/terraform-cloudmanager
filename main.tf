@@ -23,7 +23,7 @@ provider "netapp-cloudmanager" {
 }
 
 data "netapp-cloudmanager_nss_account" "nss-account-cm" {
-        provider = netapp-cloudmanager
-        client_id = var.clientid
-        username = "CETECHLLC_CM"
-    }
+  provider  = netapp-cloudmanager
+  client_id = var.clientid
+  username  = "CETECHLLC_CM"
+}

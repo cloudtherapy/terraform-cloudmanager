@@ -1,6 +1,6 @@
 resource "netapp-cloudmanager_cvo_aws" "cvo-aws" {
   provider = netapp-cloudmanager
-  name     = "questdr"
+  name     = "plagg"
   region   = "us-east-1"
   vpc_id   = "vpc-008acf686c21d91c9"
   aws_tag {
