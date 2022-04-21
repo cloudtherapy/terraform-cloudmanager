@@ -21,3 +21,9 @@ provider "netapp-cloudmanager" {
   refresh_token = var.token
   aws_profile   = var.profile
 }
+
+data "netapp-cloudmanager_nss_account" "nss-account-cm" {
+        provider = netapp-cloudmanager
+        client_id = var.clientid
+        username = "CETECHLLC_CM"
+    }
