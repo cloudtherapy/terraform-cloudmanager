@@ -16,13 +16,11 @@ variable "cluster_onprem" {
   type        = map(any)
   default     = {}
 }
-
 variable "cluster_user" {
   description = "NetApp cluster username"
   type        = string
   default     = "admin"
 }
-
 variable "cluster_password" {
   description = "NetApp cluster password"
   type        = string

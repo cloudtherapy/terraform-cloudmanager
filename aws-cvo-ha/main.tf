@@ -79,10 +79,10 @@ resource "netapp-cloudmanager_cvo_aws" "this" {
   client_id = var.connector_client_id
 
   # NetApp Cluster (Cloud Volumes ONTAP)
-  name                      = var.cluster_name
-  license_type              = local.license_type
-  capacity_package_name     = local.capacity_package
-  is_ha                     = true
+  name                  = var.cluster_name
+  license_type          = local.license_type
+  capacity_package_name = local.capacity_package
+  is_ha                 = true
   # failover_mode             = "FloatingIP" /* Apr 25 deployment is failing when this is enabled */
   mediator_assign_public_ip = false
   svm_password              = var.cluster_password
