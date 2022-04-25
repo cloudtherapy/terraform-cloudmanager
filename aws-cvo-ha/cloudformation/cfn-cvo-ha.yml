@@ -1,0 +1,905 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: NetApp ONTAP Cloud for AWS CloudFormation Template for launching a multi-node cluster from OnCommand Cloud Manager
+Parameters:
+  InstanceType:
+    Type: String
+    Description: Instance type of this instance.
+  AMI:
+    Type: AWS::EC2::Image::Id
+    Description: ONTAP Cloud AMI ID.
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: ID of an existing Virtual Private Cloud (VPC).
+  FileSystemId:
+    Type: String
+    Description: The FSx filesystem ID. e.g. fs-01234567890123456
+    Default: ''
+  KeyPair:
+    Type: String
+    Description: Optional EC2 keypair name for SSH authentication
+    Default: ''
+  InternalSecurityGroup:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: ID of an existing Security Group set up for internal communication between clustered nodes.
+  CustomExternalSecurityGroup:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Security Group in your Virtual Private Cloud (VPC) to use for firewall protection.
+  IamInstanceProfile:
+    Type: String
+    Description: Name of an existing IAM Profile for S3 access.
+    Default: ''
+  BootMediaType:
+    Type: String
+    Description: Media to use for boot volume. OutPosts require gp2.
+    Default: io1
+  Tenancy:
+    Type: String
+    Default: default
+    AllowedValues:
+      - default
+      - dedicated
+  Node1Subnet:
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet for node 1.
+  Node1SubnetMask:
+    Type: String
+    Description: Subnet mask for node 1.
+  Node1SubnetGateway:
+    Type: String
+    Description: Subnet gateway for node 1.
+  Node2Subnet:
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet for node 2.
+  Node2SubnetMask:
+    Type: String
+    Description: Subnet mask for node 2.
+  Node2SubnetGateway:
+    Type: String
+    Description: Subnet gateway for node 2.
+  Node1PlatformSerialNumber:
+    Type: String
+    Description: ONTAP Cloud Bring-Your-Own-License serial number for node 1.
+    Default: ''
+  Node2PlatformSerialNumber:
+    Type: String
+    Description: ONTAP Cloud Bring-Your-Own-License serial number for node 2.
+    Default: ''
+  Node1InstanceName:
+    Type: String
+    Description: Name of the ONTAP Cloud instance for node 1.
+  Node2InstanceName:
+    Type: String
+    Description: Name of the ONTAP Cloud instance for node 2.
+  MediatorIscsiIpAddress:
+    Type: String
+    Description: Mediator iSCSI target IP address.
+    Default: ''
+  MediatorIscsiTargetName:
+    Type: String
+    Description: Mediator iSCSI target name.
+    Default: ''
+  EncryptRoot:
+    Type: String
+    Description: Encrypt EBS volumes backing the ONTAP Cloud system disks.
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'false'
+  EncryptionKmsKey:
+    Type: String
+    Description: KMS key id or ARN for encryption of root and boot volumes and aggregate.
+    Default: ''
+  FailoverMode:
+    Type: String
+    Description: Failover will use floating IP, private IP, or a mix of both.
+    AllowedValues:
+      - FloatingIP
+      - PrivateIP
+      - Mixed
+    Default: Mixed
+  SpreadPlacementName:
+    Type: String
+    Description: Spread instances across distinct underlying hardware.
+    Default: ''
+  RootMediaType:
+    Type: String
+    Description: EBS Volume Type for ONTAP Root. Outposts require gp2
+    Default: gp3
+  DeploymentType:
+    Type: String
+    Description: ONTAP Deployment type
+    Default: ha
+    AllowedValues:
+      - ha
+      - non_shared_ha
+  Consumer:
+    Type: String
+    Description: Consumer of ONTAP Cluster
+    Default: ''
+    AllowedValues:
+      - ''
+      - fsx
+  StorageType:
+    Type: String
+    Description: Storage Type used for this deployment
+    Default: ''
+    AllowedValues:
+      - ''
+      - ssd
+      - hdd
+  MaximumMTU:
+    Type: String
+    Description: Maximum transmission unit (largest packet or frame size) for this deployment
+    Default: ''
+  Node1AvailabilityZone:
+    Type: String
+    Description: Availability Zone of the ONTAP HA Instance-1
+    Default: ''
+  Node2AvailabilityZone:
+    Type: String
+    Description: Availability Zone of the ONTAP HA Instance-2
+    Default: ''
+  CoreDiskSize:
+    Type: String
+    Description: Size of the ONTAP Core disk in GB. If a valid value is provided or for FSx, EBS volume of this size will be created and attached to each ONTAP instance.
+    Default: '530'
+  CoreMediaType:
+    Type: String
+    Description: Type of the ONTAP core disk. EBS volume of this type will be created and attached.
+    Default: st1
+Conditions:
+  HasKeyPair: !Not
+    - !Equals
+      - !Ref 'KeyPair'
+      - ''
+  IsBYOL: !And
+    - !Not
+      - !Equals
+        - !Ref 'Node1PlatformSerialNumber'
+        - ''
+    - !Not
+      - !Equals
+        - !Ref 'Node2PlatformSerialNumber'
+        - ''
+  IsPIOPSBootMedia: !Or
+    - !Equals
+      - !Ref 'BootMediaType'
+      - io1
+    - !Equals
+      - !Ref 'BootMediaType'
+      - io2
+  IsPIOPSRootMedia: !Or
+    - !Equals
+      - !Ref 'RootMediaType'
+      - io1
+    - !Equals
+      - !Ref 'RootMediaType'
+      - io2
+  IsM4Instance: !Or
+    - !Equals
+      - !Ref 'InstanceType'
+      - m4.xlarge
+    - !Equals
+      - !Ref 'InstanceType'
+      - m4.2xlarge
+  SupportPrivateIP: !Or
+    - !Equals
+      - !Ref 'FailoverMode'
+      - PrivateIP
+    - !Equals
+      - !Ref 'FailoverMode'
+      - Mixed
+  UseSpreadPlacementGroup: !Not
+    - !Equals
+      - !Ref 'SpreadPlacementName'
+      - ''
+  EncWithKey: !And
+    - !Equals
+      - !Ref 'EncryptRoot'
+      - 'true'
+    - !Not
+      - !Equals
+        - !Ref 'EncryptionKmsKey'
+        - ''
+  IsFsx: !Equals
+    - !Ref 'Consumer'
+    - fsx
+  IsCvo: !Equals
+    - !Ref 'Consumer'
+    - ''
+  HasConsumer: !Not
+    - !Equals
+      - !Ref 'Consumer'
+      - ''
+  HasStorageType: !Not
+    - !Equals
+      - !Ref 'StorageType'
+      - ''
+  HasMTU: !Not
+    - !Equals
+      - !Ref 'MaximumMTU'
+      - ''
+  CreateCoreDiskResource: !Or
+    - !Condition 'IsFsx'
+    - !Not
+      - !Equals
+        - ''
+        - !Ref 'CoreDiskSize'
+  CreateFsxDefaultCoreDisk: !And
+    - !Condition 'IsFsx'
+    - !Equals
+      - ''
+      - !Ref 'CoreDiskSize'
+  IsPIOPSCoreMedia: !Or
+    - !Equals
+      - !Ref 'CoreMediaType'
+      - io1
+    - !Equals
+      - !Ref 'CoreMediaType'
+      - io2
+    - !Equals
+      - !Ref 'CoreMediaType'
+      - gp3
+Resources:
+  Node1ClusterMgmtDataNetwork:
+    Type: AWS::EC2::NetworkInterface
+    Properties:
+      Description: !If
+        - IsFsx
+        - eth0/e0a - Interface for FSx Node Management and S3 Bucket Communication
+        - Interface for Node Management, Cluster Management, and Data - e0a
+      SubnetId: !Ref 'Node1Subnet'
+      GroupSet:
+        - !Ref 'CustomExternalSecurityGroup'
+      SecondaryPrivateIpAddressCount: !If
+        - IsFsx
+        - '1'
+        - !If
+          - SupportPrivateIP
+          - '4'
+          - '2'
+      SourceDestCheck: 'false'
+      Tags:
+        - Key: Network
+          Value: ClusterMgmtAndData
+        - !If
+          - IsFsx
+          - Key: FSx.FileSystemId
+            Value: !Ref 'FileSystemId'
+          - !Ref 'AWS::NoValue'
+  Node1ClusterNetwork:
+    Type: AWS::EC2::NetworkInterface
+    Condition: IsCvo
+    Properties:
+      Description: eth1/e0b - Interface for Intra-Cluster Communication
+      SubnetId: !Ref 'Node1Subnet'
+      GroupSet:
+        - !Ref 'InternalSecurityGroup'
+      SecondaryPrivateIpAddressCount: !If
+        - IsFsx
+        - '1'
+        - '0'
+      SourceDestCheck: 'true'
+      Tags:
+        - Key: Network
+          Value: ClusterLIF
+  Node1HANetwork:
+    Type: AWS::EC2::NetworkInterface
+    Properties:
+      Description: eth2/e0c - Interface for HA Interconnect
+      SubnetId: !Ref 'Node1Subnet'
+      GroupSet:
+        - !Ref 'InternalSecurityGroup'
+      SourceDestCheck: 'true'
+      Tags:
+        - Key: Network
+          Value: HANetwork
+        - !If
+          - IsFsx
+          - Key: FSx.FileSystemId
+            Value: !Ref 'FileSystemId'
+          - !Ref 'AWS::NoValue'
+  Node1ISCSINetwork:
+    Type: AWS::EC2::NetworkInterface
+    Properties:
+      Description: eth3/e0d - Interface for RSM iSCSI Traffic
+      SubnetId: !Ref 'Node1Subnet'
+      GroupSet:
+        - !Ref 'InternalSecurityGroup'
+      SourceDestCheck: 'true'
+      Tags:
+        - Key: Network
+          Value: ISCSI-LIF
+        - !If
+          - IsFsx
+          - Key: FSx.FileSystemId
+            Value: !Ref 'FileSystemId'
+          - !Ref 'AWS::NoValue'
+  Node2ClusterMgmtDataNetwork:
+    Type: AWS::EC2::NetworkInterface
+    Properties:
+      Description: !If
+        - IsFsx
+        - eth0/e0a - Interface for FSx Node Management and S3 Bucket Communication
+        - Interface for Node Management, Cluster Management, and Data - e0a
+      SubnetId: !Ref 'Node2Subnet'
+      GroupSet:
+        - !Ref 'CustomExternalSecurityGroup'
+      SecondaryPrivateIpAddressCount: !If
+        - IsFsx
+        - '1'
+        - !If
+          - SupportPrivateIP
+          - '3'
+          - '2'
+      SourceDestCheck: 'false'
+      Tags:
+        - Key: Network
+          Value: ClusterMgmtAndData
+        - !If
+          - IsFsx
+          - Key: FSx.FileSystemId
+            Value: !Ref 'FileSystemId'
+          - !Ref 'AWS::NoValue'
+  Node2ClusterNetwork:
+    Type: AWS::EC2::NetworkInterface
+    Condition: IsCvo
+    Properties:
+      Description: eth1/e0b - Interface for Intra-Cluster Communication
+      SubnetId: !Ref 'Node2Subnet'
+      GroupSet:
+        - !Ref 'InternalSecurityGroup'
+      SecondaryPrivateIpAddressCount: !If
+        - IsFsx
+        - '1'
+        - '0'
+      SourceDestCheck: 'true'
+      Tags:
+        - Key: Network
+          Value: ClusterLIF
+  Node2HANetwork:
+    Type: AWS::EC2::NetworkInterface
+    Properties:
+      Description: eth2/e0c - Interface for HA Interconnect
+      SubnetId: !Ref 'Node2Subnet'
+      GroupSet:
+        - !Ref 'InternalSecurityGroup'
+      SourceDestCheck: 'true'
+      Tags:
+        - Key: Network
+          Value: HANetwork
+        - !If
+          - IsFsx
+          - Key: FSx.FileSystemId
+            Value: !Ref 'FileSystemId'
+          - !Ref 'AWS::NoValue'
+  Node2ISCSINetwork:
+    Type: AWS::EC2::NetworkInterface
+    Properties:
+      Description: eth3/e0d - Interface for RSM iSCSI Traffic
+      SubnetId: !Ref 'Node2Subnet'
+      GroupSet:
+        - !Ref 'InternalSecurityGroup'
+      SourceDestCheck: 'true'
+      Tags:
+        - Key: Network
+          Value: ISCSI-LIF
+        - !If
+          - IsFsx
+          - Key: FSx.FileSystemId
+            Value: !Ref 'FileSystemId'
+          - !Ref 'AWS::NoValue'
+  Node1CoreDisk:
+    Type: AWS::EC2::Volume
+    Condition: CreateCoreDiskResource
+    Properties:
+      AutoEnableIO: 'false'
+      AvailabilityZone: !Ref 'Node1AvailabilityZone'
+      MultiAttachEnabled: 'false'
+      Size: !If
+        - CreateFsxDefaultCoreDisk
+        - '750'
+        - !Ref 'CoreDiskSize'
+      VolumeType: !Ref 'CoreMediaType'
+      Iops: !If
+        - IsPIOPSCoreMedia
+        - '1000'
+        - !Ref 'AWS::NoValue'
+      Encrypted: !Ref 'EncryptRoot'
+      KmsKeyId: !If
+        - EncWithKey
+        - !Ref 'EncryptionKmsKey'
+        - !Ref 'AWS::NoValue'
+      Tags:
+        - !If
+          - IsFsx
+          - Key: FSx.FileSystemId
+            Value: !Ref 'FileSystemId'
+          - !Ref 'AWS::NoValue'
+  Node2CoreDisk:
+    Type: AWS::EC2::Volume
+    Condition: CreateCoreDiskResource
+    Properties:
+      AutoEnableIO: 'false'
+      AvailabilityZone: !Ref 'Node2AvailabilityZone'
+      MultiAttachEnabled: 'false'
+      Size: !If
+        - CreateFsxDefaultCoreDisk
+        - '750'
+        - !Ref 'CoreDiskSize'
+      VolumeType: !Ref 'CoreMediaType'
+      Iops: !If
+        - IsPIOPSCoreMedia
+        - '1000'
+        - !Ref 'AWS::NoValue'
+      Encrypted: !Ref 'EncryptRoot'
+      KmsKeyId: !If
+        - EncWithKey
+        - !Ref 'EncryptionKmsKey'
+        - !Ref 'AWS::NoValue'
+      Tags:
+        - !If
+          - IsFsx
+          - Key: FSx.FileSystemId
+            Value: !Ref 'FileSystemId'
+          - !Ref 'AWS::NoValue'
+  Node1Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref 'AMI'
+      KeyName: !If
+        - HasKeyPair
+        - !Ref 'KeyPair'
+        - !Ref 'AWS::NoValue'
+      InstanceType: !Ref 'InstanceType'
+      PlacementGroupName: !If
+        - UseSpreadPlacementGroup
+        - !Ref 'SpreadPlacementName'
+        - ''
+      NetworkInterfaces:
+        - NetworkInterfaceId: !Ref 'Node1ClusterMgmtDataNetwork'
+          DeviceIndex: '0'
+        - !If
+          - IsFsx
+          - !Ref 'AWS::NoValue'
+          - NetworkInterfaceId: !Ref 'Node1ClusterNetwork'
+            DeviceIndex: '1'
+        - NetworkInterfaceId: !Ref 'Node1HANetwork'
+          DeviceIndex: !If
+            - IsFsx
+            - '1'
+            - '2'
+        - NetworkInterfaceId: !Ref 'Node1ISCSINetwork'
+          DeviceIndex: !If
+            - IsFsx
+            - '2'
+            - '3'
+      IamInstanceProfile: !Ref 'IamInstanceProfile'
+      Tags:
+        - Key: Name
+          Value: !Ref 'Node1InstanceName'
+        - Key: WorkingEnvironment
+          Value: !Ref 'AWS::StackName'
+        - !If
+          - IsFsx
+          - Key: FSx.FileSystemId
+            Value: !Ref 'FileSystemId'
+          - !Ref 'AWS::NoValue'
+      EbsOptimized: 'true'
+      Tenancy: !Ref 'Tenancy'
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs: !If
+            - IsPIOPSBootMedia
+            - VolumeType: !Ref 'BootMediaType'
+              Iops: '1250'
+              DeleteOnTermination: 'false'
+              Encrypted: !Ref 'EncryptRoot'
+              KmsKeyId: !If
+                - EncWithKey
+                - !Ref 'EncryptionKmsKey'
+                - !Ref 'AWS::NoValue'
+            - VolumeType: !Ref 'BootMediaType'
+              Encrypted: !Ref 'EncryptRoot'
+              KmsKeyId: !If
+                - EncWithKey
+                - !Ref 'EncryptionKmsKey'
+                - !Ref 'AWS::NoValue'
+        - DeviceName: !If
+            - CreateCoreDiskResource
+            - /dev/xvdg
+            - /dev/xvdf
+          Ebs: !If
+            - IsPIOPSRootMedia
+            - VolumeType: !Ref 'RootMediaType'
+              Iops: '1250'
+              DeleteOnTermination: 'false'
+              Encrypted: !Ref 'EncryptRoot'
+              KmsKeyId: !If
+                - EncWithKey
+                - !Ref 'EncryptionKmsKey'
+                - !Ref 'AWS::NoValue'
+              VolumeSize: '140'
+            - VolumeType: !Ref 'RootMediaType'
+              Encrypted: !Ref 'EncryptRoot'
+              KmsKeyId: !If
+                - EncWithKey
+                - !Ref 'EncryptionKmsKey'
+                - !Ref 'AWS::NoValue'
+              VolumeSize: '140'
+        - DeviceName: !If
+            - CreateCoreDiskResource
+            - /dev/xvdh
+            - /dev/xvdg
+          Ebs: !If
+            - IsPIOPSRootMedia
+            - VolumeType: !Ref 'RootMediaType'
+              Iops: '1250'
+              DeleteOnTermination: 'false'
+              Encrypted: !Ref 'EncryptRoot'
+              KmsKeyId: !If
+                - EncWithKey
+                - !Ref 'EncryptionKmsKey'
+                - !Ref 'AWS::NoValue'
+              VolumeSize: '140'
+            - VolumeType: !Ref 'RootMediaType'
+              Encrypted: !Ref 'EncryptRoot'
+              KmsKeyId: !If
+                - EncWithKey
+                - !Ref 'EncryptionKmsKey'
+                - !Ref 'AWS::NoValue'
+              VolumeSize: '140'
+      UserData: !Base64
+        Fn::Join:
+          - ''
+          - - !If
+              - IsBYOL
+              - !Join
+                - ''
+                - - data_ontap_platform_serial_number=
+                  - !Ref 'Node1PlatformSerialNumber'
+                  - "\n"
+              - ''
+            - !If
+              - IsM4Instance
+              - "ic.mvia.dont_frag=1\n"
+              - ''
+            - iscsi_partner_ip=
+            - !GetAtt 'Node2ISCSINetwork.PrimaryPrivateIpAddress'
+            - "\n"
+            - iscsi_mediator_ip=
+            - !Ref 'MediatorIscsiIpAddress'
+            - "\n"
+            - iscsi_mediator_target=
+            - !Ref 'MediatorIscsiTargetName'
+            - "\n"
+            - ic_local_ip=
+            - !GetAtt 'Node1HANetwork.PrimaryPrivateIpAddress'
+            - "\n"
+            - ic_local_netmask=
+            - !Ref 'Node1SubnetMask'
+            - "\n"
+            - ic_partner_ip=
+            - !GetAtt 'Node2HANetwork.PrimaryPrivateIpAddress'
+            - "\n"
+            - ic_gateway_ip=
+            - !Ref 'Node1SubnetGateway'
+            - "\n"
+            - deployment_type=
+            - !Ref 'DeploymentType'
+            - "\n"
+            - !If
+              - HasConsumer
+              - !Join
+                - ''
+                - - consumer=
+                  - !Ref 'Consumer'
+                  - "\n"
+              - ''
+            - !If
+              - HasStorageType
+              - !Join
+                - ''
+                - - storage_type=
+                  - !Ref 'StorageType'
+                  - "\n"
+              - ''
+            - !If
+              - HasMTU
+              - !Join
+                - ''
+                - - maximum_mtu=
+                  - !Ref 'MaximumMTU'
+                  - "\n"
+              - ''
+            - !If
+              - CreateCoreDiskResource
+              - !Join
+                - ''
+                - - core_volume=
+                  - !Ref 'Node1CoreDisk'
+                  - "\n"
+              - ''
+            - !If
+              - IsFsx
+              - !Join
+                - ''
+                - - fsx_fs_id=
+                  - !Ref 'FileSystemId'
+                  - "\n"
+              - ''
+            - !If
+              - IsFsx
+              - !Join
+                - ''
+                - - enable_nic_reduction_for_cluster=true
+                  - "\n"
+              - ''
+      Volumes:
+        - !If
+          - CreateCoreDiskResource
+          - Device: /dev/xvdf
+            VolumeId: !Ref 'Node1CoreDisk'
+          - !Ref 'AWS::NoValue'
+  Node2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref 'AMI'
+      KeyName: !If
+        - HasKeyPair
+        - !Ref 'KeyPair'
+        - !Ref 'AWS::NoValue'
+      InstanceType: !Ref 'InstanceType'
+      PlacementGroupName: !If
+        - UseSpreadPlacementGroup
+        - !Ref 'SpreadPlacementName'
+        - ''
+      NetworkInterfaces:
+        - NetworkInterfaceId: !Ref 'Node2ClusterMgmtDataNetwork'
+          DeviceIndex: '0'
+        - !If
+          - IsFsx
+          - !Ref 'AWS::NoValue'
+          - NetworkInterfaceId: !Ref 'Node2ClusterNetwork'
+            DeviceIndex: '1'
+        - NetworkInterfaceId: !Ref 'Node2HANetwork'
+          DeviceIndex: !If
+            - IsFsx
+            - '1'
+            - '2'
+        - NetworkInterfaceId: !Ref 'Node2ISCSINetwork'
+          DeviceIndex: !If
+            - IsFsx
+            - '2'
+            - '3'
+      IamInstanceProfile: !Ref 'IamInstanceProfile'
+      Tags:
+        - Key: Name
+          Value: !Ref 'Node2InstanceName'
+        - Key: WorkingEnvironment
+          Value: !Ref 'AWS::StackName'
+        - !If
+          - IsFsx
+          - Key: FSx.FileSystemId
+            Value: !Ref 'FileSystemId'
+          - !Ref 'AWS::NoValue'
+      EbsOptimized: 'true'
+      Tenancy: !Ref 'Tenancy'
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs: !If
+            - IsPIOPSBootMedia
+            - VolumeType: !Ref 'BootMediaType'
+              Iops: '1250'
+              DeleteOnTermination: 'false'
+              Encrypted: !Ref 'EncryptRoot'
+              KmsKeyId: !If
+                - EncWithKey
+                - !Ref 'EncryptionKmsKey'
+                - !Ref 'AWS::NoValue'
+            - VolumeType: !Ref 'BootMediaType'
+              Encrypted: !Ref 'EncryptRoot'
+              KmsKeyId: !If
+                - EncWithKey
+                - !Ref 'EncryptionKmsKey'
+                - !Ref 'AWS::NoValue'
+        - DeviceName: !If
+            - CreateCoreDiskResource
+            - /dev/xvdg
+            - /dev/xvdf
+          Ebs: !If
+            - IsPIOPSRootMedia
+            - VolumeType: !Ref 'RootMediaType'
+              Iops: '1250'
+              DeleteOnTermination: 'false'
+              Encrypted: !Ref 'EncryptRoot'
+              KmsKeyId: !If
+                - EncWithKey
+                - !Ref 'EncryptionKmsKey'
+                - !Ref 'AWS::NoValue'
+              VolumeSize: '140'
+            - VolumeType: !Ref 'RootMediaType'
+              Encrypted: !Ref 'EncryptRoot'
+              KmsKeyId: !If
+                - EncWithKey
+                - !Ref 'EncryptionKmsKey'
+                - !Ref 'AWS::NoValue'
+              VolumeSize: '140'
+        - DeviceName: !If
+            - CreateCoreDiskResource
+            - /dev/xvdh
+            - /dev/xvdg
+          Ebs: !If
+            - IsPIOPSRootMedia
+            - VolumeType: !Ref 'RootMediaType'
+              Iops: '1250'
+              DeleteOnTermination: 'false'
+              Encrypted: !Ref 'EncryptRoot'
+              KmsKeyId: !If
+                - EncWithKey
+                - !Ref 'EncryptionKmsKey'
+                - !Ref 'AWS::NoValue'
+              VolumeSize: '140'
+            - VolumeType: !Ref 'RootMediaType'
+              Encrypted: !Ref 'EncryptRoot'
+              KmsKeyId: !If
+                - EncWithKey
+                - !Ref 'EncryptionKmsKey'
+                - !Ref 'AWS::NoValue'
+              VolumeSize: '140'
+      UserData: !Base64
+        Fn::Join:
+          - ''
+          - - !If
+              - IsBYOL
+              - !Join
+                - ''
+                - - data_ontap_platform_serial_number=
+                  - !Ref 'Node2PlatformSerialNumber'
+                  - "\n"
+              - ''
+            - !If
+              - IsM4Instance
+              - "ic.mvia.dont_frag=1\n"
+              - ''
+            - iscsi_partner_ip=
+            - !GetAtt 'Node1ISCSINetwork.PrimaryPrivateIpAddress'
+            - "\n"
+            - iscsi_mediator_ip=
+            - !Ref 'MediatorIscsiIpAddress'
+            - "\n"
+            - iscsi_mediator_target=
+            - !Ref 'MediatorIscsiTargetName'
+            - "\n"
+            - ic_local_ip=
+            - !GetAtt 'Node2HANetwork.PrimaryPrivateIpAddress'
+            - "\n"
+            - ic_local_netmask=
+            - !Ref 'Node2SubnetMask'
+            - "\n"
+            - ic_partner_ip=
+            - !GetAtt 'Node1HANetwork.PrimaryPrivateIpAddress'
+            - "\n"
+            - ic_gateway_ip=
+            - !Ref 'Node2SubnetGateway'
+            - "\n"
+            - deployment_type=
+            - !Ref 'DeploymentType'
+            - "\n"
+            - !If
+              - HasConsumer
+              - !Join
+                - ''
+                - - consumer=
+                  - !Ref 'Consumer'
+                  - "\n"
+              - ''
+            - !If
+              - HasStorageType
+              - !Join
+                - ''
+                - - storage_type=
+                  - !Ref 'StorageType'
+                  - "\n"
+              - ''
+            - !If
+              - HasMTU
+              - !Join
+                - ''
+                - - maximum_mtu=
+                  - !Ref 'MaximumMTU'
+                  - "\n"
+              - ''
+            - !If
+              - CreateCoreDiskResource
+              - !Join
+                - ''
+                - - core_volume=
+                  - !Ref 'Node2CoreDisk'
+                  - "\n"
+              - ''
+            - !If
+              - IsFsx
+              - !Join
+                - ''
+                - - enable_nic_reduction_for_cluster=true
+                  - "\n"
+              - ''
+      Volumes:
+        - !If
+          - CreateCoreDiskResource
+          - Device: /dev/xvdf
+            VolumeId: !Ref 'Node2CoreDisk'
+          - !Ref 'AWS::NoValue'
+Outputs:
+  Node1InstanceID:
+    Value: !Ref 'Node1Instance'
+    Description: Instance ID of node 1.
+  Node1NodeMgmtNetworkPrimaryIPAddress:
+    Value: !GetAtt 'Node1ClusterMgmtDataNetwork.PrimaryPrivateIpAddress'
+    Description: Primary IP Address of Node Management LIF (e0a) on node 1.
+  Node1ExternalISCSIIPAddress:
+    Value: !Select
+      - '0'
+      - !GetAtt 'Node1ClusterMgmtDataNetwork.SecondaryPrivateIpAddresses'
+    Description: IP Address of iSCSI LIF (e0a) for external iSCSI connections on node 1.
+    Condition: IsCvo
+  Node1InterclusterIPAddress:
+    Value: !Select
+      - '1'
+      - !GetAtt 'Node1ClusterMgmtDataNetwork.SecondaryPrivateIpAddresses'
+    Description: IP Address of Intercluster LIF (e0a) on node 1.
+    Condition: IsCvo
+  Node1NASIPAddress:
+    Value: !If
+      - SupportPrivateIP
+      - !Select
+        - '2'
+        - !GetAtt 'Node1ClusterMgmtDataNetwork.SecondaryPrivateIpAddresses'
+      - ''
+    Description: IP Address of NAS LIF (e0a) on node 1.
+    Condition: IsCvo
+  Node1ClusterMgmtIPAddress:
+    Value: !If
+      - SupportPrivateIP
+      - !Select
+        - '3'
+        - !GetAtt 'Node1ClusterMgmtDataNetwork.SecondaryPrivateIpAddresses'
+      - ''
+    Description: IP Address of Cluster Management LIF (e0a) on node 1.
+    Condition: IsCvo
+  Node1ClusterNetworkPrimaryIPAddress:
+    Value: !GetAtt 'Node1ClusterNetwork.PrimaryPrivateIpAddress'
+    Description: Primary IP Address of Cluster Network (e0b) on node 1.
+    Condition: IsCvo
+  Node2InstanceID:
+    Value: !Ref 'Node2Instance'
+    Description: Instance ID of node 2.
+  Node2NodeMgmtPrimaryIPAddress:
+    Value: !GetAtt 'Node2ClusterMgmtDataNetwork.PrimaryPrivateIpAddress'
+    Description: Primary IP Address of Node Management LIF (e0a) on node 2.
+  Node2ExternalISCSIIPAddress:
+    Value: !Select
+      - '0'
+      - !GetAtt 'Node2ClusterMgmtDataNetwork.SecondaryPrivateIpAddresses'
+    Description: IP Address of iSCSI LIF (e0a) for external iSCSI connections on node 2.
+    Condition: IsCvo
+  Node2InterclusterIPAddress:
+    Value: !Select
+      - '1'
+      - !GetAtt 'Node2ClusterMgmtDataNetwork.SecondaryPrivateIpAddresses'
+    Description: IP Address of Intercluster LIF (e0a) on node 2.
+    Condition: IsCvo
+  Node2NASIPAddress:
+    Value: !If
+      - SupportPrivateIP
+      - !Select
+        - '2'
+        - !GetAtt 'Node2ClusterMgmtDataNetwork.SecondaryPrivateIpAddresses'
+      - ''
+    Description: IP Address of NAS LIF (e0a) on node 2.
+    Condition: IsCvo
+  Node2ClusterNetworkPrimaryIPAddress:
+    Value: !GetAtt 'Node2ClusterNetwork.PrimaryPrivateIpAddress'
+    Description: Primary IP Address of Cluster Network (e0b) on node 2.
+    Condition: IsCvo
