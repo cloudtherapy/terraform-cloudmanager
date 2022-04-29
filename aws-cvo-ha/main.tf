@@ -1,15 +1,9 @@
-provider "netapp-cloudmanager" {
-  refresh_token = var.connector_token
-  aws_profile   = var.aws_profile
-}
-
-provider "aws" {
-  alias   = "aws"
-  profile = var.aws_profile
-  region  = var.aws_region
-}
-
 locals {
+  # Authorize as user or service account
+  connector_refresh_token = var.connector_refresh_token == "" ? null : var.connector_refresh_token
+  connector_sa_client_id  = var.connector_sa_client_id == "" ? null : var.connector_sa_client_id
+  connector_sa_secret_key = var.connector_sa_secret_key == "" ? null : var.connector_sa_secret_key
+
   # Calculate list of AWS route tables associated with CVO subnets
   aws_route_tables = distinct([for r in data.aws_route_table.this : "${r.route_table_id}"])
 
@@ -35,8 +29,18 @@ locals {
   aws_ebs_throughput = contains(["gp3"], var.aws_ebs_type) ? var.aws_ebs_throughput : null
 }
 
+provider "netapp-cloudmanager" {
+  refresh_token = local.connector_refresh_token
+  sa_client_id  = local.connector_sa_client_id
+  sa_secret_key = local.connector_sa_secret_key
+}
+
+provider "aws" {
+  profile = var.aws_profile
+  region  = var.aws_region
+}
+
 data "aws_route_table" "this" {
-  provider = aws.aws
   for_each = toset([
     var.aws_subnet_node1,
     var.aws_subnet_node2,

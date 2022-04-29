@@ -23,8 +23,13 @@ aws_tags = {
 }
 
 # NetApp Connector (Cloud Manager)
-connector_client_id = "<client_id_for_netapp_cloud_connector>" /* tpcldmgr */
-connector_token     = "<refresh_token_from_netapp_cloud_central>" /* Carlos */
+connector_client_id = "<client_id_for_netapp_cloud_connector>"
+# Authorize as user or service account
+# User Refresh Token
+# connector_refresh_token = "<refresh_token_from_netapp_cloud_central>"
+# Service Account Client ID and Secret Key
+connector_sa_client_id  = "<client_id_for_netapp_cloud_connector_service_account>"
+connector_sa_secret_key = "<secret_key_for_netapp_cloud_connector_service_account>"
 
 # NetApp Cluster (Cloud Volumes ONTAP)
 cluster_name     = "NetappCvoHa"

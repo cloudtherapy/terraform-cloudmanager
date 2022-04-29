@@ -29,17 +29,14 @@ variable "cluster_ip_management" {
   description = "NetApp CVO cluster floating IP for management"
   type        = string
 }
-
 variable "cluster_ip_node1" {
   description = "NetApp CVO cluster floating IP for node 1"
   type        = string
 }
-
 variable "cluster_ip_node2" {
   description = "NetApp CVO cluster floating IP for node 2"
   type        = string
 }
-
 variable "cluster_ip_svm" {
   description = "NetApp CVO cluster floating IP for svm"
   type        = string
@@ -88,9 +85,22 @@ variable "connector_client_id" {
   type        = string
   sensitive   = true
 }
-variable "connector_token" {
-  description = "Refresh Token of deployed Cloud Manager"
+variable "connector_refresh_token" {
+  description = "Refresh token for NetApp Cloud Connector user"
   type        = string
+  default     = ""
+  sensitive   = true
+}
+variable "connector_sa_client_id" {
+  description = "Client ID for NetApp Cloud Connector service account"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+variable "connector_sa_secret_key" {
+  description = "Secret key for NetApp Cloud Connector service account"
+  type        = string
+  default     = ""
   sensitive   = true
 }
 
