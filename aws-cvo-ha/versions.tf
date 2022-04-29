@@ -3,12 +3,12 @@ terraform {
     # https://registry.terraform.io/providers/NetApp/netapp-cloudmanager/latest/docs
     netapp-cloudmanager = {
       source  = "NetApp/netapp-cloudmanager"
-      version = "22.2.2"
+      version = "22.4.0"
     }
     # https://registry.terraform.io/providers/hashicorp/aws/latest/docs
     aws = {
       source  = "hashicorp/aws"
-      version = "4.10.0"
+      version = "4.12.1"
     }
   }
 }
