@@ -4,10 +4,9 @@ connector_token     = "<refresh_token_from_netapp_cloud_central>"
 
 # On-Premises NetApp Clusters 
 cluster_onprem = {
-  "aruba"    = "10.227.0.21"
-  "spinboro" = "10.227.0.51"
-  "canada"   = "10.220.33.61"
-  "america"  = "10.220.33.81"
+  "cluster1" = "<ip_for_cluster1>"
+  "cluster2" = "<ip_for_cluster2>"
+  "cluster3" = "<ip_for_cluster3>"
 }
 # cluster_user = "admin"
 cluster_password = "<cluster_password_for_admin_user>"

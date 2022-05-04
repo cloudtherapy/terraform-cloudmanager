@@ -19,7 +19,7 @@ aws_ebs_type = "gp3"
 # aws_ebs_throughput = 125
 aws_tags = {
   "cetech:contact"  = "cetech"
-  "app:description" = "NetApp CVO HA"
+  "app:description" = "AWS High Availability Cloud Volumes ONTAP"
 }
 
 # NetApp Connector (Cloud Manager)
@@ -32,7 +32,7 @@ connector_sa_client_id  = "<client_id_for_netapp_cloud_connector_service_account
 connector_sa_secret_key = "<secret_key_for_netapp_cloud_connector_service_account>"
 
 # NetApp Cluster (Cloud Volumes ONTAP)
-cluster_name     = "NetappCvoHa"
+cluster_name     = "AwsCvoHa"
 cluster_password = "<cluster_password_for_admin_user>"
 # license_option   = "capacity"
 # license_package  = "Essential"
