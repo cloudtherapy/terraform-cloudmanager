@@ -2,15 +2,15 @@
 
 | Name | Version |
 |------|---------|
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | 4.10.0 |
-| <a name="requirement_netapp-cloudmanager"></a> [netapp-cloudmanager](#requirement\_netapp-cloudmanager) | 22.2.2 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | 4.12.1 |
+| <a name="requirement_netapp-cloudmanager"></a> [netapp-cloudmanager](#requirement\_netapp-cloudmanager) | 22.4.0 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws.aws"></a> [aws.aws](#provider\_aws.aws) | 4.10.0 |
-| <a name="provider_netapp-cloudmanager"></a> [netapp-cloudmanager](#provider\_netapp-cloudmanager) | 22.2.2 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 4.12.1 |
+| <a name="provider_netapp-cloudmanager"></a> [netapp-cloudmanager](#provider\_netapp-cloudmanager) | 22.4.0 |
 
 ## Modules
 
@@ -20,8 +20,8 @@ No modules.
 
 | Name | Type |
 |------|------|
-| [netapp-cloudmanager_cvo_aws.this](https://registry.terraform.io/providers/NetApp/netapp-cloudmanager/22.2.2/docs/resources/cvo_aws) | resource |
-| [aws_route_table.this](https://registry.terraform.io/providers/hashicorp/aws/4.10.0/docs/data-sources/route_table) | data source |
+| [netapp-cloudmanager_cvo_aws.this](https://registry.terraform.io/providers/NetApp/netapp-cloudmanager/22.4.0/docs/resources/cvo_aws) | resource |
+| [aws_route_table.this](https://registry.terraform.io/providers/hashicorp/aws/4.12.1/docs/data-sources/route_table) | data source |
 
 ## Inputs
 
@@ -46,7 +46,9 @@ No modules.
 | <a name="input_cluster_name"></a> [cluster\_name](#input\_cluster\_name) | NetApp CVO cluster name | `string` | n/a | yes |
 | <a name="input_cluster_password"></a> [cluster\_password](#input\_cluster\_password) | NetApp CVO password for admin user | `string` | n/a | yes |
 | <a name="input_connector_client_id"></a> [connector\_client\_id](#input\_connector\_client\_id) | Client ID of deployed Cloud Manager | `string` | n/a | yes |
-| <a name="input_connector_token"></a> [connector\_token](#input\_connector\_token) | Refresh Token of deployed Cloud Manager | `string` | n/a | yes |
+| <a name="input_connector_refresh_token"></a> [connector\_refresh\_token](#input\_connector\_refresh\_token) | Refresh token for NetApp Cloud Connector user | `string` | `""` | no |
+| <a name="input_connector_sa_client_id"></a> [connector\_sa\_client\_id](#input\_connector\_sa\_client\_id) | Client ID for NetApp Cloud Connector service account | `string` | `""` | no |
+| <a name="input_connector_sa_secret_key"></a> [connector\_sa\_secret\_key](#input\_connector\_sa\_secret\_key) | Secret key for NetApp Cloud Connector service account | `string` | `""` | no |
 | <a name="input_license_option"></a> [license\_option](#input\_license\_option) | NetApp CVO license option [capacity, explore, standard, premium]. Default: capacity | `string` | `"capacity"` | no |
 | <a name="input_license_package"></a> [license\_package](#input\_license\_package) | NetApp CVO license capacity package [Freemium, Essential, Professional]. Default: Essential | `string` | `"Essential"` | no |
 | <a name="input_license_purchase"></a> [license\_purchase](#input\_license\_purchase) | NetApp CVO license purchase method [paygo, byol]. Default: paygo | `string` | `"paygo"` | no |
