@@ -62,7 +62,7 @@ resource "netapp-cloudmanager_cvo_aws" "this" {
   cluster_floating_ip = var.cluster_ip_management
   data_floating_ip    = var.cluster_ip_node1
   data_floating_ip2   = var.cluster_ip_node2
-  # svm_floating_ip     = var.cluster_ip_svm /* Apr 25 deployment is failing when this is enabled */
+  svm_floating_ip     = var.cluster_ip_svm
 
   # AWS Compute Infrastructure
   instance_type          = local.aws_instance_type
@@ -87,7 +87,7 @@ resource "netapp-cloudmanager_cvo_aws" "this" {
   license_type          = local.license_type
   capacity_package_name = local.capacity_package
   is_ha                 = true
-  # failover_mode             = "FloatingIP" /* Apr 25 deployment is failing when this is enabled */
+  failover_mode             = "FloatingIP"
   mediator_assign_public_ip = false
   svm_password              = var.cluster_password
 }
