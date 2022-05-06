@@ -14,7 +14,16 @@ terraform {
       source  = "NetApp/netapp-cloudmanager"
       version = "22.4.0"
     }
+    aws = {
+      source  = "hashicorp/aws"
+      version = "4.12.1"
+    }
   }
+}
+
+provider "aws" {
+  profile = var.profile
+  region  = var.region
 }
 
 provider "netapp-cloudmanager" {

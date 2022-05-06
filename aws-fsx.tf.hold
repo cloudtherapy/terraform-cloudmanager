@@ -4,6 +4,8 @@ resource "netapp-cloudmanager_aws_fsx" "aws-fsx" {
   region              = "us-east-1"
   primary_subnet_id   = "subnet-074e8c769e120edd9"
   secondary_subnet_id = "subnet-0589cbf26071579eb"
+  route_table_ids     = ["rtb-07be04a5b047e1a77"]
+  security_group_ids  = ["sg-0f140a7196aca85b5"]
   tenant_id           = "account-69NQb6MX"
   workspace_id        = "workspace-Jd0espMc"
   tags {
@@ -16,7 +18,9 @@ resource "netapp-cloudmanager_aws_fsx" "aws-fsx" {
   }
   fsx_admin_password         = var.netapp_pass
   throughput_capacity        = 512
-  storage_capacity_size      = 1024
-  storage_capacity_size_unit = "GiB"
-  aws_credentials_name = "ontap-fsx-role"
+  #storage_capacity_size      = 1024
+  #storage_capacity_size_unit = "GiB"
+  aws_credentials_name       = "ontap-fsx-role"
+  import_file_system         = true
+  file_system_id             = "fs-0481b6859d12f61a9"
 }
