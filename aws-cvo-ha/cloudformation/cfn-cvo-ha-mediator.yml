@@ -1,0 +1,407 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: NetApp HA Mediator Instance
+Parameters:
+  InstanceType:
+    Type: String
+    Default: t3.micro
+  IamAdminProfileName:
+    Type: String
+    Description: Name of an existing IAM Profile for necessary route table update.
+  CustomExternalSecurityGroup:
+    Type: String
+    Description: Security Group in your Virtual Private Cloud (VPC) to use for firewall protection, allowing external management of mediator.
+  LoginKey:
+    Type: String
+    Description: Name of the HA Mediator instance's private key.
+  InstanceName:
+    Type: String
+    Default: NetApp-HAMediator
+    Description: Name of the HAMediator instance that will be deployed.
+  SubnetId:
+    Type: String
+    Description: Subnet ID where the instance will be launched.
+  VPC:
+    Type: String
+    Description: VPC instance will be launched in.
+  VPCCidr:
+    Type: String
+    Description: CIDR block of VPC.
+  InternalSecurityGroup:
+    Type: String
+    Default: ''
+    Description: ID of an existing Security Group set up for internal communication between clustered nodes and mediator.
+  FileSystemId:
+    Type: String
+    Default: ''
+    Description: The FSx filesystem ID. e.g. fs-01234567890123456
+  MediatorAmiId:
+    Type: String
+    Default: ''
+    Description: The AMI ID for launching the instance.
+  ProxyServer:
+    Type: String
+    Default: ''
+    Description: If environment requires a proxy server for AWS API access and software updates, enter the address and optional port. (e.g. 10.0.0.3:8080)
+  EncryptRoot:
+    Type: String
+    Description: Encrypt mediator EBS volume.
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'false'
+  EncryptionKmsKey:
+    Type: String
+    Description: KMS key id or ARN for encryption of mediator EBS volume.
+    Default: ''
+  EC2Endpoint:
+    Type: String
+    Description: Endpoint of the EC2 service (e.g. ec2.amazonaws.com).
+    Default: ec2.amazonaws.com
+  EC2MediatorEndpoint:
+    Type: String
+    Description: Endpoint of the EC2 service for the mediator to use.
+    Default: ''
+  MediatorUpdaterMetaFileURL:
+    Type: String
+    Description: Location of the file that contains the meta update information for the NetApp HA Mediator
+    Default: ''
+  AllocatePublicIP:
+    Type: String
+    Description: Set to 'true', if instance requires a public IP address for use with an IGW.
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'true'
+  SpreadPlacementName:
+    Type: String
+    Description: Spread instances across distinct underlying hardware.
+    Default: ''
+  PlacementGroupStrategy:
+    Type: String
+    Description: Spread Placement strategy
+    AllowedValues:
+      - spread
+      - cluster
+      - ''
+    Default: ''
+  BootDiskType:
+    Type: String
+    Description: Type of disk to use for boot disk
+    Default: standard
+  DataDiskType:
+    Type: String
+    Description: Type of disk to use for data disk
+    Default: standard
+  IOPS:
+    Type: String
+    Description: IOPS to use if io2 is specified
+    Default: '100'
+  OCCMCidrIp:
+    Type: String
+    Description: CIDR block or IP of OCCM used to access mediator API.
+    Default: '0.0.0.0/0'
+Mappings:
+  RegionToAMI:
+    af-south-1:
+      AMI: ami-0842b700e5fdc67af
+    eu-north-1:
+      AMI: ami-08023037277404a7d
+    ap-south-1:
+      AMI: ami-0855e584d6d7f1950
+    eu-west-3:
+      AMI: ami-09a8b1e93b12f953b
+    eu-west-2:
+      AMI: ami-0997b5490395ecafb
+    eu-south-1:
+      AMI: ami-0a370496d2962223f
+    eu-west-1:
+      AMI: ami-06a99c935997791af
+    ap-northeast-3:
+      AMI: ami-0d5784bfdf0d5ba4b
+    ap-northeast-2:
+      AMI: ami-0351a1010e8f36fc2
+    me-south-1:
+      AMI: ami-0fe28462c81fbbb88
+    ap-northeast-1:
+      AMI: ami-0e8af953bd7741dae
+    sa-east-1:
+      AMI: ami-0052fe020c0575499
+    ca-central-1:
+      AMI: ami-06cd67d647b8b3866
+    ap-east-1:
+      AMI: ami-09edc8f13f8403a26
+    ap-southeast-1:
+      AMI: ami-0ce172cba068c3421
+    ap-southeast-2:
+      AMI: ami-025de040d2bcedbf9
+    eu-central-1:
+      AMI: ami-09b70dbcf6b71ad4a
+    us-east-1:
+      AMI: ami-02ffe54082ffc392f
+    us-east-2:
+      AMI: ami-0a221563dc8f944be
+    us-west-1:
+      AMI: ami-098398c43ccf03c04
+    us-west-2:
+      AMI: ami-06be5923460d9d54b
+    us-gov-west-1:
+      AMI: ami-0bfce0f52ba9c3972
+    us-gov-east-1:
+      AMI: ami-08e737971e67a49ee
+    cn-northwest-1:
+      AMI: CN_NORTHWEST_1_AMI
+    cn-west-1:
+      AMI: CN_WEST_1_AMI
+    us-iso-east-1:
+      AMI: US_ISO_EAST_1_AMI
+Conditions:
+  NoCustomSG: !Equals
+    - !Ref 'CustomExternalSecurityGroup'
+    - ''
+  CreateIamProfile: !Equals
+    - !Ref 'IamAdminProfileName'
+    - ''
+  NoKeyPair: !Equals
+    - !Ref 'LoginKey'
+    - ''
+  IsFsx: !Not
+    - !Equals
+      - !Ref 'FileSystemId'
+      - ''
+  UseMappedImageId: !Equals
+    - !Ref 'MediatorAmiId'
+    - ''
+  SetIOPSBoot: !Or
+    - !Equals
+      - !Ref 'BootDiskType'
+      - io2
+    - !Equals
+      - !Ref 'BootDiskType'
+      - io1
+  SetIOPSData: !Or
+    - !Equals
+      - !Ref 'DataDiskType'
+      - io2
+    - !Equals
+      - !Ref 'DataDiskType'
+      - io1
+  UseSpreadPlacementGroup: !Not
+    - !Equals
+      - !Ref 'SpreadPlacementName'
+      - ''
+  CreatePlacementGroup: !And
+    - !Not
+      - !Equals
+        - !Ref 'PlacementGroupStrategy'
+        - ''
+    - !Equals
+      - !Ref 'SpreadPlacementName'
+      - ''
+  EncWithKey: !And
+    - !Equals
+      - !Ref 'EncryptRoot'
+      - 'true'
+    - !Not
+      - !Equals
+        - !Ref 'EncryptionKmsKey'
+        - ''
+Resources:
+  IamHAAdminRole:
+    Condition: CreateIamProfile
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: ''
+            Effect: Allow
+            Principal:
+              Service:
+                - !Ref 'EC2Endpoint'
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: cloudontap-ha-admin-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:AssignPrivateIpAddresses
+                  - ec2:CreateRoute
+                  - ec2:DeleteRoute
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DescribeRouteTables
+                  - ec2:DescribeVpcs
+                  - ec2:ReplaceRoute
+                  - ec2:UnassignPrivateIpAddresses
+                Resource: '*'
+  PlacementGroup:
+    Condition: CreatePlacementGroup
+    Type: AWS::EC2::PlacementGroup
+    Properties:
+      Strategy: !Ref 'PlacementGroupStrategy'
+  IamHAAdminProfile:
+    Condition: CreateIamProfile
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref 'IamHAAdminRole'
+  HAMediatorExternalSecurityGroup:
+    Condition: NoCustomSG
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: NetApp HAMediator Instance External Security Group
+      VpcId: !Ref 'VPC'
+      SecurityGroupIngress:
+        - IpProtocol: TCP
+          FromPort: '3000'
+          ToPort: '3000'
+          CidrIp: !Ref 'OCCMCidrIp'
+      SecurityGroupEgress:
+        - IpProtocol: TCP
+          FromPort: '0'
+          ToPort: '65535'
+          CidrIp: '0.0.0.0/0'
+        - IpProtocol: UDP
+          FromPort: '0'
+          ToPort: '65535'
+          CidrIp: '0.0.0.0/0'
+  HAMediatorInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !If
+        - UseMappedImageId
+        - !FindInMap
+          - RegionToAMI
+          - !Ref 'AWS::Region'
+          - AMI
+        - !Ref 'MediatorAmiId'
+      IamInstanceProfile: !If
+        - CreateIamProfile
+        - !Ref 'IamHAAdminProfile'
+        - !Ref 'IamAdminProfileName'
+      KeyName: !If
+        - NoKeyPair
+        - !Ref 'AWS::NoValue'
+        - !Ref 'LoginKey'
+      InstanceType: !Ref 'InstanceType'
+      PlacementGroupName: !If
+        - UseSpreadPlacementGroup
+        - !Ref 'SpreadPlacementName'
+        - !If
+          - CreatePlacementGroup
+          - !Ref 'PlacementGroup'
+          - ''
+      NetworkInterfaces:
+        - GroupSet:
+            - !If
+              - NoCustomSG
+              - !Ref 'HAMediatorExternalSecurityGroup'
+              - !Ref 'CustomExternalSecurityGroup'
+            - !Ref 'InternalSecurityGroup'
+          AssociatePublicIpAddress: !Ref 'AllocatePublicIP'
+          DeviceIndex: '0'
+          DeleteOnTermination: 'true'
+          SubnetId: !Ref 'SubnetId'
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: '8'
+            VolumeType: !Ref 'BootDiskType'
+            DeleteOnTermination: 'false'
+            Encrypted: !Ref 'EncryptRoot'
+            Iops: !If
+              - SetIOPSBoot
+              - !Ref 'IOPS'
+              - !Ref 'AWS::NoValue'
+            KmsKeyId: !If
+              - EncWithKey
+              - !Ref 'EncryptionKmsKey'
+              - !Ref 'AWS::NoValue'
+        - DeviceName: /dev/xvdf
+          Ebs:
+            VolumeSize: '4'
+            VolumeType: !Ref 'DataDiskType'
+            DeleteOnTermination: 'false'
+            Encrypted: !Ref 'EncryptRoot'
+            Iops: !If
+              - SetIOPSData
+              - !Ref 'IOPS'
+              - !Ref 'AWS::NoValue'
+            KmsKeyId: !If
+              - EncWithKey
+              - !Ref 'EncryptionKmsKey'
+              - !Ref 'AWS::NoValue'
+      Tags:
+        - Key: Name
+          Value: !Ref 'InstanceName'
+        - Key: WorkingEnvironment
+          Value: !Ref 'AWS::StackName'
+        - !If
+          - IsFsx
+          - Key: FSx.FileSystemId
+            Value: !Ref 'FileSystemId'
+          - !Ref 'AWS::NoValue'
+      UserData: !Base64
+        Fn::Join:
+          - ''
+          - - "#!/bin/bash\n"
+            - if [ "
+            - !Ref 'FileSystemId'
+            - '" != "" ]; then'
+            - "\n"
+            - "    curl -X PUT http://127.0.0.1:3080/config/ssm?value=1\n"
+            - "    curl -X PUT http://127.0.0.1:3080/config/is_fsx?value=1\n"
+            - fi
+            - "\n"
+            - if [ "
+            - !Ref 'ProxyServer'
+            - '" != "" ]; then'
+            - "\n"
+            - '    proxy=`echo "'
+            - !Ref 'ProxyServer'
+            - "\" | perl -p  -e 's/^https?:\\/\\///'` \n"
+            - "    # Mediator should update proxy configs \n"
+            - "    curl -X PUT http://127.0.0.1:3080/config/proxy?value=$proxy \n"
+            - fi
+            - "\n"
+            - if [ "
+            - !Ref 'EC2MediatorEndpoint'
+            - '" != "" ]; then'
+            - "\n"
+            - '    endpoint=`echo "'
+            - !Ref 'EC2MediatorEndpoint'
+            - "\"` \n"
+            - "    # Mediator should update config \n"
+            - "    curl -X PUT http://127.0.0.1:3080/config/ec2_endpoint_url?value=$endpoint \n"
+            - "    curl -X PUT http://127.0.0.1:3080/config/useAccountHeaders/1 \n"
+            - fi
+            - "\n"
+            - echo "
+            - !Ref 'MediatorUpdaterMetaFileURL'
+            - "\" > /var/lib/mediator/location \n"
+            - service mediator status
+            - "\n"
+Outputs:
+  PrimaryIpAddress:
+    Value: !GetAtt 'HAMediatorInstance.PrivateIp'
+    Description: Primary IP Address of the Mediator node.
+  MediatorRESTfulURL:
+    Value: !Join
+      - ''
+      - - https://
+        - !GetAtt 'HAMediatorInstance.PrivateIp'
+        - :3000/
+    Description: URL Address of the Mediator API.
+  InstanceId:
+    Value: !Ref 'HAMediatorInstance'
+    Description: Instance ID of the newly created instance
+  IamProfile:
+    Value: !If
+      - CreateIamProfile
+      - !Ref 'IamHAAdminProfile'
+      - !Ref 'IamAdminProfileName'
+    Description: Iam Profile used for Mediator node
